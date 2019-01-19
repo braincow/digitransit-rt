@@ -106,7 +106,7 @@ fn main() {
                 .takes_value(true)
                 .multiple(true)
                 .required(true)
-                .help("Channel filter to subscribe"),
+                .help("Channel filter to subscribe. Example: \"/hfp/v1/journey/ongoing/train/#\""),
         ).arg(
             Arg::with_name("CLIENT_ID")
                 .short("i")
