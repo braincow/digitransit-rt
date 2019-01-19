@@ -90,10 +90,6 @@ fn process_payload(mut payload: Payload)
             warn!("Line {} ({}) is currently ahead of schedule by {} seconds.", desi, veh, dl);
         }
     };
-
-    if dl < 0 {
-    } else {
-    }
 }
 
 fn main() {
