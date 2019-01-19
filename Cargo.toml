@@ -1,0 +1,17 @@
+[package]
+name = "digitransit-rt"
+version = "0.1.0"
+authors = ["Antti Peltonen <antti.peltonen@iki.fi>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4"
+tokio = "0.1"
+futures = "0.1"
+mqtt-protocol = "0.6"
+clap = "2.32"
+serde_json = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+env_logger = "0.5"
+uuid = { version = "0.7", features = ["v4"] }
