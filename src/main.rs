@@ -11,6 +11,10 @@ extern crate serde_json;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate slippy_map_tiles;
+extern crate slippy_map_tilenames as smt;
+
+use slippy_map_tiles::Tile;
 
 use std::env;
 use std::fmt::Debug;
@@ -73,11 +77,22 @@ struct Payload {
     VP: VP
 }
 
+// which ZOOM level to use for tiles
+const ZOOM: u8 = 10;
+// tile server baseurl
+const TILE_SERVER_URL: &str = "https://a.tile.openstreetmap.org";
+
 fn process_payload(mut payload: Payload)
 {
     let desi: String = payload.VP.desi.unwrap();
     let veh: u32 = payload.VP.veh.unwrap();
     let dl: i32 = *payload.VP.dl.get_or_insert(0);
+
+    let l2t = smt::lonlat2tile(payload.VP.long.unwrap().into(),
+        payload.VP.lat.unwrap().into(),
+        ZOOM);
+    let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
+    info!("{}/{}.png", TILE_SERVER_URL, tile.zxy());
 
     match dl.cmp(&0) {
         Ordering::Equal => {
