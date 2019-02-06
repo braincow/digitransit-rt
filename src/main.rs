@@ -40,6 +40,36 @@ use mqtt::{Decodable, Encodable, QualityOfService};
 
 use std::cmp::Ordering;
 
+use std::error;
+use std::fmt;
+
+type Result<T> = std::result::Result<T, CoordinateError>;
+#[derive(Debug, Clone)]
+struct CoordinateError {
+    name: String
+}
+impl CoordinateError {
+    fn raise(coordinate: String) -> CoordinateError {
+        CoordinateError { name: coordinate }
+    }
+}
+impl fmt::Display for CoordinateError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "'{}' is empty", self.name)
+    }
+}
+// This is important for other errors to wrap this one.
+impl error::Error for CoordinateError {
+    fn description(&self) -> &str {
+        "Coordinate was empty"
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
 fn generate_client_id() -> String {
     format!("/MQTT/rust/{}", Uuid::new_v4())
 }
@@ -47,6 +77,11 @@ fn generate_client_id() -> String {
 fn alt_drop<E: Debug>(err: E) {
     warn!("{:?}", err);
 }
+
+// which ZOOM level to use for tiles
+const ZOOM: u8 = 19;
+// tile server baseurl
+const TILE_SERVER_URL: &str = "https://a.tile.openstreetmap.org";
 
 // struct to assist serde_json in deserialization.
 // https://digitransit.fi/en/developers/apis/4-realtime-api/vehicle-positions/
@@ -76,20 +111,27 @@ struct VP {
 struct Payload {
     VP: VP
 }
+impl Payload {
+    fn slippy_tilename_url(&self) -> Result<String> {
+        let long: f32 = self.VP.long.ok_or(CoordinateError::raise("longitude".to_string())).unwrap();
+        let lat: f32 = self.VP.lat.ok_or(CoordinateError::raise("latitude".to_string())).unwrap();
 
-// which ZOOM level to use for tiles
-const ZOOM: u8 = 19;
-// tile server baseurl
-const TILE_SERVER_URL: &str = "https://a.tile.openstreetmap.org";
+        let l2t = smt::lonlat2tile(long.into(), lat.into(), ZOOM);
+        let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
+        Ok(format!("{}/{}.png", TILE_SERVER_URL, tile.zxy()))
+    }
+    fn ontime(&self) -> bool {
+        match self.VP.dl {
+            Ok(value)
+        }
+    }
+}
 
 fn process_payload(mut payload: Payload)
 {
     let desi: String = payload.VP.desi.unwrap();
     let veh: u32 = payload.VP.veh.unwrap();
     let dl: i32 = *payload.VP.dl.get_or_insert(0);
-
-    let long: f64 = (*payload.VP.long.get_or_insert(0.0)).into();
-    let lat: f64 = (*payload.VP.lat.get_or_insert(0.0)).into();
 
     match dl.cmp(&0) {
         Ordering::Equal => {
@@ -103,13 +145,10 @@ fn process_payload(mut payload: Payload)
         }
     };
 
-    if long != 0.0 && lat != 0.0 {
-        let l2t = smt::lonlat2tile(long, lat, ZOOM);
-        let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
-        info!(" {}/{}.png", TILE_SERVER_URL, tile.zxy());
-    } else {
-        error!(" Longitude or latitude is missing.");
-    }
+    match payload.slippy_tilename_url() {
+        Ok(url) => info!(" {}", url),
+        Err(err) => error!(" {}", err)
+    };
 
 }
 
