@@ -112,6 +112,10 @@ struct Payload {
     VP: VP
 }
 impl Payload {
+    fn parse(msg: &str) -> Payload {
+        serde_json::from_str(msg).unwrap()
+    }
+
     fn slippy_tilename_url(&self) -> Result<String> {
         let long: f32 = self.VP.long.ok_or(CoordinateError::raise("longitude".to_string())).unwrap();
         let lat: f32 = self.VP.lat.ok_or(CoordinateError::raise("latitude".to_string())).unwrap();
@@ -120,18 +124,25 @@ impl Payload {
         let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
         Ok(format!("{}/{}.png", TILE_SERVER_URL, tile.zxy()))
     }
-    fn ontime(&self) -> bool {
-        match self.VP.dl {
-            Ok(value)
-        }
+
+    fn get_desi(&self) -> String {
+        self.VP.desi.as_ref().unwrap().clone()
+    }
+
+    fn get_veh(&self) -> u32 {
+        self.VP.veh.as_ref().unwrap().clone()
+    }
+
+    fn get_dl(&self) -> i32 {
+        self.VP.dl.as_ref().unwrap().clone()
     }
 }
 
-fn process_payload(mut payload: Payload)
+fn process_payload(payload: &Payload)
 {
-    let desi: String = payload.VP.desi.unwrap();
-    let veh: u32 = payload.VP.veh.unwrap();
-    let dl: i32 = *payload.VP.dl.get_or_insert(0);
+    let desi: String = payload.get_desi();
+    let veh: u32 = payload.get_veh();
+    let dl: i32 = payload.get_dl();
 
     match dl.cmp(&0) {
         Ordering::Equal => {
@@ -275,9 +286,9 @@ fn main() {
                             }
                         };
                         debug!("PUBLISH ({}): {}", publ.topic_name(), msg);
-                        let payload: Payload = serde_json::from_str(msg).unwrap();
+                        let payload = Payload::parse(msg);
 
-                        process_payload(payload);
+                        process_payload(&payload);
                     }
                     _ => {}
                 }
