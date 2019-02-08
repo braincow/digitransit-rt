@@ -113,18 +113,24 @@ impl Payload {
         Ok(format!("{}/{}.png", TILE_SERVER_URL, tile.zxy()))
     }
 
-    fn get_desi(&self) -> String {
-        self.VP.desi.as_ref().unwrap().clone()
+    fn get_desi(&self) -> Result<String, InformationError> {
+        match self.VP.desi.as_ref() {
+            Some(desi) => Ok(desi.clone()),
+            None => return Err(InformationError::IsEmpty("Line number (desi)"))
+        }
     }
 
-    fn get_veh(&self) -> u32 {
-        self.VP.veh.as_ref().unwrap().clone()
+    fn get_veh(&self) -> Result<u32, InformationError> {
+        match self.VP.veh.as_ref() {
+            Some(veh) => Ok(veh.clone()),
+            None => return Err(InformationError::IsEmpty("Vehicle number (veh)"))
+        }
     }
 
     fn get_dl(&self) -> Result<i32, InformationError> {
         match self.VP.dl.as_ref() {
             Some(dl) => Ok(dl.clone()),
-            None => return Err(InformationError::IsEmpty("Delay (dl)"))
+            None => return Err(InformationError::IsEmpty("Schedule drift (dl)"))
         }
     }
 }
@@ -133,15 +139,15 @@ fn process_payload(payload: &Payload)
 {   
     match payload.get_dl() {
         Ok(dl) => {
-            let desi: String = payload.get_desi();
-            let veh: u32 = payload.get_veh();
+            let desi: String = payload.get_desi().unwrap();
+            let veh: u32 = payload.get_veh().unwrap();
 
             match dl.cmp(&0) {
                 Ordering::Equal => {
                     info!("Line {} ({}) is on schedule.", desi, veh);
                 },
                 Ordering::Less => {
-                    warn!("Line {} ({}) is currently behind schedule by {} seconds.", desi, veh, dl);
+                    warn!("Line {} ({}) is currently falling behind schedule by {} seconds.", desi, veh, (dl * -1));
                 },
                 Ordering::Greater => {
                     warn!("Line {} ({}) is currently ahead of schedule by {} seconds.", desi, veh, dl);
