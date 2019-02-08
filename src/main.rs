@@ -77,8 +77,8 @@ struct VP {
     tsi: Option<u32>,
     spd: Option<f32>,
     hdg: Option<u32>,
-    lat: Option<f32>,
-    long: Option<f32>,
+    lat: Option<f64>,
+    long: Option<f64>,
     acc: Option<f32>,
     dl: Option<i32>,
     odo: Option<u32>,
@@ -102,11 +102,11 @@ impl Payload {
         let long: f64 = match self.VP.long {
             Some(long) => long,
             None => return Err(InformationError::IsEmpty("Longitude (long)"))
-        }.into();
+        };
         let lat: f64 = match self.VP.long {
             Some(lat) => lat,
             None => return Err(InformationError::IsEmpty("Latitude (lat)"))
-        }.into();
+        };
 
         let l2t = smt::lonlat2tile(long, lat, ZOOM);
         let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
