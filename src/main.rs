@@ -13,6 +13,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate slippy_map_tiles;
 extern crate slippy_map_tilenames as smt;
+#[macro_use]
+extern crate quick_error;
 
 use slippy_map_tiles::Tile;
 
@@ -40,33 +42,13 @@ use mqtt::{Decodable, Encodable, QualityOfService};
 
 use std::cmp::Ordering;
 
-use std::error;
-use std::fmt;
-
-type Result<T> = std::result::Result<T, CoordinateError>;
-#[derive(Debug, Clone)]
-struct CoordinateError {
-    name: String
-}
-impl CoordinateError {
-    fn raise(coordinate: String) -> CoordinateError {
-        CoordinateError { name: coordinate }
-    }
-}
-impl fmt::Display for CoordinateError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "'{}' is empty", self.name)
-    }
-}
-// This is important for other errors to wrap this one.
-impl error::Error for CoordinateError {
-    fn description(&self) -> &str {
-        "Coordinate was empty"
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        // Generic error, underlying cause isn't tracked.
-        None
+quick_error! {
+    #[derive(Debug)]
+    pub enum InformationError {
+        IsEmpty(field: &'static str) {
+            description("MQTT delivered JSON field is empty.")
+            display("{} field is null, empty or missing.", field)
+        }
     }
 }
 
@@ -116,11 +98,17 @@ impl Payload {
         serde_json::from_str(msg).unwrap()
     }
 
-    fn slippy_tilename_url(&self) -> Result<String> {
-        let long: f32 = self.VP.long.ok_or(CoordinateError::raise("longitude".to_string())).unwrap();
-        let lat: f32 = self.VP.lat.ok_or(CoordinateError::raise("latitude".to_string())).unwrap();
+    fn slippy_tilename_url(&self) -> Result<String, InformationError> {
+        let long: f64 = match self.VP.long {
+            Some(long) => long,
+            None => return Err(InformationError::IsEmpty("Longitude (long)"))
+        }.into();
+        let lat: f64 = match self.VP.long {
+            Some(lat) => lat,
+            None => return Err(InformationError::IsEmpty("Latitude (lat)"))
+        }.into();
 
-        let l2t = smt::lonlat2tile(long.into(), lat.into(), ZOOM);
+        let l2t = smt::lonlat2tile(long, lat, ZOOM);
         let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
         Ok(format!("{}/{}.png", TILE_SERVER_URL, tile.zxy()))
     }
@@ -133,34 +121,40 @@ impl Payload {
         self.VP.veh.as_ref().unwrap().clone()
     }
 
-    fn get_dl(&self) -> i32 {
-        self.VP.dl.as_ref().unwrap().clone()
+    fn get_dl(&self) -> Result<i32, InformationError> {
+        match self.VP.dl.as_ref() {
+            Some(dl) => Ok(dl.clone()),
+            None => return Err(InformationError::IsEmpty("Delay (dl)"))
+        }
     }
 }
 
 fn process_payload(payload: &Payload)
-{
-    let desi: String = payload.get_desi();
-    let veh: u32 = payload.get_veh();
-    let dl: i32 = payload.get_dl();
+{   
+    match payload.get_dl() {
+        Ok(dl) => {
+            let desi: String = payload.get_desi();
+            let veh: u32 = payload.get_veh();
 
-    match dl.cmp(&0) {
-        Ordering::Equal => {
-            info!("Line {} ({}) is on schedule.", desi, veh);
+            match dl.cmp(&0) {
+                Ordering::Equal => {
+                    info!("Line {} ({}) is on schedule.", desi, veh);
+                },
+                Ordering::Less => {
+                    warn!("Line {} ({}) is currently behind schedule by {} seconds.", desi, veh, dl);
+                },
+                Ordering::Greater => {
+                    warn!("Line {} ({}) is currently ahead of schedule by {} seconds.", desi, veh, dl);
+                }
+            };
+
+            match payload.slippy_tilename_url() {
+                Ok(url) => info!(" {}", url),
+                Err(err) => error!(" {}", err)
+            };
         },
-        Ordering::Less => {
-            warn!("Line {} ({}) is currently behind schedule by {} seconds.", desi, veh, dl);
-        },
-        Ordering::Greater => {
-            warn!("Line {} ({}) is currently ahead of schedule by {} seconds.", desi, veh, dl);
-        }
+        Err(err) => error!("{}", err)
     };
-
-    match payload.slippy_tilename_url() {
-        Ok(url) => info!(" {}", url),
-        Err(err) => error!(" {}", err)
-    };
-
 }
 
 fn main() {
