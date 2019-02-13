@@ -42,6 +42,10 @@ use mqtt::{Decodable, Encodable, QualityOfService};
 
 use std::cmp::Ordering;
 
+extern crate dotenv;
+
+use dotenv::dotenv;
+
 quick_error! {
     #[derive(Debug)]
     pub enum InformationError {
@@ -59,11 +63,6 @@ fn generate_client_id() -> String {
 fn alt_drop<E: Debug>(err: E) {
     warn!("{:?}", err);
 }
-
-// which ZOOM level to use for tiles
-const ZOOM: u8 = 19;
-// tile server baseurl
-const TILE_SERVER_URL: &str = "https://a.tile.openstreetmap.org";
 
 // struct to assist serde_json in deserialization.
 // https://digitransit.fi/en/developers/apis/4-realtime-api/vehicle-positions/
@@ -108,9 +107,10 @@ impl Payload {
             None => return Err(InformationError::IsEmpty("Latitude (lat)"))
         };
 
-        let l2t = smt::lonlat2tile(long, lat, ZOOM);
-        let tile = Tile::new(ZOOM, l2t.0, l2t.1).unwrap();
-        Ok(format!("{}/{}.png", TILE_SERVER_URL, tile.zxy()))
+        let zoom = env::var("TILE_ZOOM").unwrap().parse::<u8>().unwrap();
+        let l2t = smt::lonlat2tile(long, lat, zoom);
+        let tile = Tile::new(zoom, l2t.0, l2t.1).unwrap();
+        Ok(format!("{}/{}.png", env::var("TILE_SERVER_URL").unwrap(), tile.zxy()))
     }
 
     fn get_desi(&self) -> Result<String, InformationError> {
@@ -164,9 +164,18 @@ fn process_payload(payload: &Payload)
 }
 
 fn main() {
+    dotenv().ok();
+
     // configure logging
     env::set_var("RUST_LOG", env::var_os("RUST_LOG").unwrap_or_else(|| "info".into()));
     env_logger::init();
+
+    // debug environment
+    debug!("Environment starts");
+    for (key, value) in env::vars() {
+        debug!("{}: {}", key, value);
+    }
+    debug!("Environment ends");
 
     let matches = App::new("digitransit-rt")
         .author("Antti Peltonen <bcow@iki.fi>")

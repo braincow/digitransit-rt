@@ -18,3 +18,4 @@ uuid = { version = "0.7", features = ["v4"] }
 slippy-map-tiles = "0.14"
 slippy_map_tilenames = "0.2"
 quick-error = "1.2"
+dotenv = "0.13"
