@@ -102,7 +102,7 @@ impl Payload {
             Some(long) => long,
             None => return Err(InformationError::IsEmpty("Longitude (long)"))
         };
-        let lat: f64 = match self.VP.long {
+        let lat: f64 = match self.VP.lat {
             Some(lat) => lat,
             None => return Err(InformationError::IsEmpty("Latitude (lat)"))
         };
